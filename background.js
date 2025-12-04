@@ -1,51 +1,37 @@
-// background.js - VERSI INTEGRASI C++
-console.log("[ORACLE-BG] Service Worker Memuat...");
-
+// background.js - VERSI IPC
 const HOST_NAME = "com.tiktok.oracle.cpp";
 let nativePort = null;
 
-// 1. Fungsi untuk membuka jalur ke C++
 function connectToNative() {
-    console.log("[ORACLE-BG] Mencoba menghubungkan ke Native Host...");
     nativePort = chrome.runtime.connectNative(HOST_NAME);
 
-    // Jika C++ mengirim balasan
+    // Dengar pesan DARI C++ (Source: Named Pipe -> C++ -> Chrome)
     nativePort.onMessage.addListener((msg) => {
-        console.log("[ORACLE-BG] Diterima dari C++:", msg);
+        // Jika C++ minta sign url tertentu
+        if (msg.action === "SIGN_REQUEST" && msg.url) {
+            console.log("[ORACLE-BG] C++ Minta Sign:", msg.url);
+            
+            // Cari tab TikTok aktif dan perintahkan
+            chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+                if (tabs[0] && tabs[0].url.includes("tiktok.com")) {
+                     chrome.tabs.sendMessage(tabs[0].id, {
+                        action: "PING_TEST", // Kita reuse action PING_TEST di content.js biar gak ubah banyak
+                        custom_url: msg.url  // Tambah parameter URL
+                    });
+                }
+            });
+        }
     });
-
-    // Jika koneksi putus (atau error saat start)
-    nativePort.onDisconnect.addListener(() => {
-        console.error("[ORACLE-BG] GAGAL/PUTUS dari C++.", chrome.runtime.lastError);
-        nativePort = null;
-    });
+    
+    // ... sisa kode disconnect sama ...
+    nativePort.onDisconnect.addListener(() => { nativePort = null; });
 }
 
-// Buka koneksi saat script dimuat
 connectToNative();
 
-// 2. Listener: Terima Signature dari Content Script -> Kirim ke C++
+// Terima Hasil dari Tab -> Kirim ke C++
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "HASIL_FINAL") {
-        console.log("[ORACLE-BG] Signature diterima! Mengirim ke C++...", message.data);
-        
-        if (nativePort) {
-            nativePort.postMessage(message.data);
-        } else {
-            console.warn("[ORACLE-BG] Port C++ mati. Mencoba connect ulang...");
-            connectToNative();
-            // Coba kirim lagi setelah reconnect (kasar tapi efektif untuk tes)
-            setTimeout(() => {
-                if(nativePort) nativePort.postMessage(message.data);
-            }, 500);
-        }
-    }
-});
-
-// Pemicu Test (Klik Ikon)
-chrome.action.onClicked.addListener((tab) => {
-    if (tab.url.includes("tiktok.com")) {
-        console.log("[ORACLE-BG] Tombol diklik. Mengirim PING ke tab...");
-        chrome.tabs.sendMessage(tab.id, { action: "PING_TEST" });
+        if (nativePort) nativePort.postMessage(message.data);
     }
 });

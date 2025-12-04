@@ -13,10 +13,14 @@ script.onload = function() {
 // B. Terima dari Background -> Teruskan ke Inject (Page)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "PING_TEST") {
-        console.log("[ORACLE-CONTENT] Dapat ping dari Background, meneruskan ke Page...");
+        
+        // Gunakan URL dari C++ jika ada, jika tidak pakai default
+        const targetUrl = request.custom_url || "https://webcast.tiktok.com/webcast/room/enter/?aid=1988&room_id=123456";
+
+        console.log("[ORACLE-CONTENT] Meminta sign untuk:", targetUrl);
         window.postMessage({
             type: "MINTA_SIGN_DARI_EXT",
-            payload: { url: "https://webcast.tiktok.com/webcast/room/enter/?aid=1988&device_platform=web_pc&language=en-US&room_id=123456789" }
+            payload: { url: targetUrl }
         }, "*");
     }
 });
